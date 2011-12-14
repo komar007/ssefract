@@ -1,5 +1,3 @@
-%include "c32.mac"
-
 global iter:function
 
 section .data
@@ -27,7 +25,9 @@ extern  _GLOBAL_OFFSET_TABLE_
 ;	N - pointer to bailout radius
 ;	k - number of iterations
 ;	abs - pointer to double where the absolute value will be stored
-proc iter
+iter:
+	push ebp
+	mov ebp, esp
 	get_GOT
 	; lower xmm7: -1
 	lea eax, [ebx+mone wrt ..gotoff]
