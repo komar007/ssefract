@@ -3,10 +3,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <math.h>
+#include <dlfcn.h>
 
 double maxn;
 
-int iter(double complex *c, double *N, int k, double *abs);
+int (*compute_point)(double complex *c, double *N, int k, double *abs) = NULL;
 
 void generate(unsigned char *buf, int width, int height,
 		double min_x, double max_x,
@@ -38,10 +39,9 @@ void generate(unsigned char *buf, int width, int height,
 				z = z*z + c;
 			}
 #else
-			double abs;
-			int k = iter(&c, &N, 50, &abs);
+			double v;
+			int k = compute_point(&c, &N, 50, &v);
 			if (k != 50) {
-				double v = k - log2(log(abs)/log(N));
 				if (v > maxn)
 					maxn = v;
 				buf[width*j+i] = 5*v;
@@ -68,12 +68,18 @@ void print_xpm(const unsigned char *buf, int width, int height, FILE *fp)
 
 int main(int argc, char *argv[])
 {
-	unsigned char *buf = (unsigned char*)malloc(17000000);
+	void *lib = dlopen("./test.so", RTLD_LAZY);
+	compute_point = dlsym(lib, "compute_point");
+	if (compute_point == NULL) {
+		printf("error loading symbol from test.so\n");
+	}
 	int width  = atoi(argv[1]),
 	    height = atoi(argv[2]);
+	unsigned char *buf = (unsigned char*)malloc(width*height);
 	generate(buf, width, height, -1.80, -1.70, -0.09, 0.01);
 	//generate(buf, width, height, -1.5, 1.5, -1.5, 1.5);
 	print_xpm(buf, width, height, stdout);
 	fprintf(stderr, "%lf\n", maxn);
+	dlclose(lib);
 	return 0;
 }
