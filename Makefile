@@ -1,5 +1,5 @@
 all:
-	nasm -f elf test.asm
-	ld -s -shared -soname test.so -o test.so test.o -melf_i386
+	nasm -f elf fractal.asm
+	ld -s -shared -soname fractal.so -o fractal.so fractal.o -melf_i386
 	gcc -std=c99 burningship.c -m32 -lm -ldl -DC -o burn_c
 	gcc -std=c99 burningship.c -m32 -lm -ldl -o burn_asm

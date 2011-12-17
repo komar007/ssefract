@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <complex.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -29,7 +30,7 @@ void generate(unsigned char *buf, int width, int height,
 			for (int k = 0; k < 50; ++k) {
 				double abs;
 				if ((abs = cabs(z)) > N) {
-					double v = k - log2(log(abs)/log(N));
+					double v = k - log2(log2(abs)/log2(N));
 					if (v > maxn)
 						maxn = v;
 					buf[width*j+i] = 5*v;
@@ -41,7 +42,7 @@ void generate(unsigned char *buf, int width, int height,
 #else
 			double v;
 			int k = compute_point(&c, &N, 50, &v);
-			if (k != 50) {
+			if (k != 0) {
 				if (v > maxn)
 					maxn = v;
 				buf[width*j+i] = 5*v;
