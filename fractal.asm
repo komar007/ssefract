@@ -1,11 +1,14 @@
 global compute_point:function
+global generate:function
 
 section .data
 align 16
 
+; bit mask used to count absolute values of 2 doubles in xmm
 mask dq 0x7fffffffffffffff
      dq 0x7fffffffffffffff
 
+; floating point minus one
 mone dq -1.0
 
 section .text
@@ -66,10 +69,15 @@ bailout:
 	ret
 
 ; Computes fuzzy set belonging coefficient
+; st = ecx - log2(log(abs)/log(N)) = ecx - log2(log2(abs^2)/log2(N^2))
 ; input:
-; 	lower xmm0: absolute value of complex point
-; 	lower xmm5: bailout radius N
+; 	lower xmm0: squared absolute value of complex point
+; 	lower xmm5: squared bailout radius N
 ; 	ecx       : number of iterations
+; local vars:
+; 	dword [ebp-4] : number of iterations
+; 	qword [ebp-12]: xmm5 (N)
+; 	qword [ebp-20]: xmm0 (absolute value)
 ; output:
 ; 	st        : output value v
 compute_v:
@@ -79,6 +87,7 @@ compute_v:
 	movq qword [ebp-20], xmm0
 	movq qword [ebp-12], xmm5
 	mov dword [ebp-4], ecx
+	; do the magic
 	fild dword [ebp-4]
 	fld1
 	fld1
@@ -93,19 +102,8 @@ compute_v:
 	leave
 	ret
 
-; Performs at most k iterations. Returns number of iteratation after which the
-; value exceeded bailout radius
-; arguments:
-;	c - pointer to input complex value
-;	N - pointer to bailout radius
-;	k - number of iterations
-;	v - pointer to double where the v value will be stored
-compute_point:
-	; local vars:
-	; 	qword [ebp-8]  : xmm5 (N)
-	; 	qword [ebp-16] : xmm0 (absolute value)
-	; 	dword [ebp-20] : number of iterations
-	enter 20, 0
+; Loads -1 and abs bit mask to lower xmm7 and xmm6, respectively
+load_static_data:
 	get_GOT
 	; lower xmm7: -1
 	lea eax, [ebx+mone wrt ..gotoff]
@@ -113,23 +111,93 @@ compute_point:
 	; xmm6: sign bit mask
 	lea eax, [ebx+mask wrt ..gotoff]
 	movupd xmm6, [eax]
+	ret
+
+; Performs at most k iterations. Returns number of iteratation after which the
+; value exceeded bailout radius
+; arguments:
+;	c - input complex value
+;	N - bailout radius
+;	k - number of iterations
+;	v - pointer to double where the v value will be stored
+compute_point:
+	enter 0, 0
+	call load_static_data
 	; xmm0 - c (= c + di)
-	mov eax, [ebp+8]
-	movupd xmm0, [eax]
+	movupd xmm0, [ebp+8]
 	; lower xmm5: N (bailout radius)
-	mov eax, [ebp+12]
-	movq xmm5, [eax]
+	movq xmm5, [ebp+24]
 	; N^2
 	movq xmm4, xmm5
 	mulsd xmm5, xmm4
 	; eax: max number of iterations
-	mov eax, [ebp+16]
-	call iterate
-	call compute_v
+	mov eax, [ebp+32] ; k
+	call compute_point_impl
 	; move calculated value to v argument
-	mov ebx, [ebp+20]
+	mov ebx, [ebp+36] ; v
 	fstp qword [ebx]
-	; return whether point belongs to set
+	leave
+	ret
+
+; Calculates fuzzy belonging coefficient for one complex point
+; assumes:
+; 	lower xmm7: -1.0
+; 	xmm6      : sign bitmask used to count abs
+; input:
+; 	xmm0      : input complex value
+; 	lower xmm5: squared bailout radius
+; 	eax       : max number of iterations
+; output:
+; 	st        : computed output value
+;       eax       : 0: point in set; != 0: point not in set
+compute_point_impl:
+	call iterate ; puts number of iterations in ecx
+	; compute how many iterations to the end
 	sub eax, ecx
+	call compute_v ;leaves v in st
+	ret
+
+generate:
+	enter 0, 0
+	; load max_x and max_y
+	movupd xmm0, [ebp+64]
+	; load min_x and min_y
+	movupd xmm1, [ebp+48]
+	; subtract mins from maxs, ranges in xmm0
+	subpd xmm0, xmm1
+	; load width and height
+	cvtdq2pd xmm1, [ebp+12]
+	; divide by width and height, steps in xmm0
+	divpd xmm0, xmm1
+	; edx: pointer to buffer
+	mov edx, [ebp+8] ; buf
+	; buf += frame_y*width + frame_x;
+	mov eax, [ebp+24] ; frame_y
+	mov ebx, [ebp+12] ; width
+	imul eax, ebx
+	add eax, [ebp+20] ; frame_x
+	add edx, eax
+	; ebx: row counter
+	mov ebx, 0
+rows_loop:
+	cmp ebx, [ebp+32] ; frame_h
+	je rows_loop_end
+	; ---
+	mov ecx, 0
+cols_loop:
+	cmp ecx, [ebp+28] ; frame_w
+	je cols_loop_end
+
+	mov byte [edx+ecx], 0
+
+	add ecx, 1
+	jmp cols_loop
+cols_loop_end:
+	; move buffer one line down
+	add edx, [ebp+12] ; width
+	; ---
+	add ebx, 1
+	jmp rows_loop
+rows_loop_end:
 	leave
 	ret
