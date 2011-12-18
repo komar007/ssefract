@@ -111,10 +111,10 @@ int main(int argc, char *argv[])
 	int width  = atoi(argv[1]),
 	    height = atoi(argv[2]);
 	int *buf = (int*)malloc(width*height*sizeof(int));
-	int colors[256];
-	for (int i = 0; i < 256; ++i)
-		colors[i] = i | (i << 8) | (i << 16);
-	generate_ptr(buf, width, height, 0, 0, width, height, -1.80, -0.09, -1.70, 0.01, 50.0, 50, 256, colors, 0xffffff);
+	int colors[768];
+	for (int i = 0; i < 768; ++i)
+		colors[i] = (i/3) | (((i+1)/3) << 8) | (((i+2)/3) << 16);
+	generate_ptr(buf, width, height, 0, 0, width, height, -1.80, -0.09, -1.70, 0.01, 50.0, 50, 768, colors, 0xffffff);
 	FILE *fp = fopen(argv[3], "w");
 	print_bmp(buf, width, height, fp);
 	fclose(fp);
