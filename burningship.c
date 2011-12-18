@@ -31,24 +31,28 @@ void generate(
 	buf += frame_y*width + frame_x;
 	double N2 = N*N;
 	for (int j = 0; j < frame_h; ++j) {
-		double complex c = (min_x + step_x*frame_x) + (min_y + step_y*frame_y)*I;
+		double complex c = (min_x + step_x * frame_x) + (min_y + step_y * frame_y)*I;
 		for (int i = 0; i < frame_w; ++i) {
 			double complex z;
 			buf[i] = 255;
 			z = 0 + 0*I;
-			for (int k = 0; k < iter; ++k) {
-				double abs;
-				if ((abs = cabs(z)) > N) {
-					double v = k - log2(log2(abs)/log2(N));
-					if (v > maxn)
-						maxn = v;
-					buf[i] = round(v*coef);
+			int k;
+			double abs2;
+			for (k = 0; k < iter; ++k) {
+				z = fabs(creal(z)) + I*fabs(cimag(z));
+				abs2 = creal(z)*creal(z)+cimag(z)*cimag(z);
+				if (abs2 > N2) {
 					break;
 				}
-				z = fabs(creal(z)) + I*fabs(cimag(z));
 				z = z*z + c;
 			}
-			c += step_x;
+			if (k != iter) {
+				double v = k - log2(log2(abs2)/log2(N2));
+				int x = round(v*coef);
+				buf[i] = x & 0xff;
+			}
+			c += step_x + 0*I;
+
 		}
 		++frame_y;
 		buf += width;
@@ -60,8 +64,9 @@ void print_xpm(const unsigned char *buf, int width, int height, FILE *fp)
 	fprintf(fp, "/* XPM */\n");
 	fprintf(fp, "static char *XFACE[] = {");
 	fprintf(fp, "\"%i %i %i %i\"\n", width, height, 256, 2);
-	for (int i = 0; i < 256; ++i)
-		fprintf(fp, "\"%.2x c #%.2x%.2x%.2x\"\n", i, i, i, i);
+	for (int i = 0; i < 255; ++i)
+		fprintf(fp, "\"%.2x c #%.2x%.2x%.2x\"\n", i, i/2, i/2, i/2);
+	fprintf(fp, "\"ff c #ffffff\"\n");
 	for (int j = 0; j < height; ++j) {
 		fprintf(fp, "\"");
 		for (int i = 0; i < width; ++i)

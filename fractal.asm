@@ -109,11 +109,12 @@ compute_v:
 ; output:
 ; 	st        : computed output value
 ;       eax       : 0: point in set; != 0: point not in set
+; 	sets Z flag if point in set
 compute_point_impl:
 	call iterate ; puts number of iterations in esi
+	call compute_v ;leaves v in st
 	; compute how many iterations to the end
 	sub eax, esi
-	call compute_v ;leaves v in st
 	ret
 
 ; Loads -1 and abs bit mask to lower xmm7 and xmm6, respectively
@@ -189,15 +190,19 @@ rows_loop:
 cols_loop:
 	cmp ecx, [ebp+28] ; frame_w
 	je cols_loop_end
+	; save default color for point in set
+	mov byte [edx+ecx], 255
 	; load max number of iterations to eax
 	mov eax, edi
 	call compute_point_impl ; leaves 0 in eax if in set, != 0 otherwise
 	; store floating point result in local var
 	fstp qword [esp+16] ; local var (result)
+	jz after_color ; Z is set by compute_point_impl
 	movq xmm1, [esp+16]
 	mulsd xmm1, [esp+32] ; scaling coefficient
 	cvtsd2si eax, xmm1
 	mov byte [edx+ecx], al
+after_color:
 	; add step_x + 0i to c
 	addsd xmm0, xmm4 ; xmm4: steps
 	add ecx, 1
