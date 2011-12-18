@@ -89,10 +89,9 @@ int main(int argc, char *argv[])
 	int width  = atoi(argv[1]),
 	    height = atoi(argv[2]);
 	unsigned char *buf = (unsigned char*)malloc(width*height);
-	generate(buf, width, height, 0, 0, width, height, 50.0, 50, -1.80, -0.09, -1.70, 0.01);
+	generate_ptr(buf, width, height, 0, 0, width, height, 50.0, 50, -1.80, -0.09, -1.70, 0.01);
+	//generate_ptr(buf, width, height, 0, 0, width, height, 50.0, 50, -1, -1, 1, 1);
 
-	generate_ptr(buf, width, height, 50, 50, 10, 10, 50.0, 50, -1, 1, -1, 1);
-	//generate(buf, width, height, width, -1.5, 1.5, -1.5, 1.5);
 	print_xpm(buf, width, height, stdout);
 	fprintf(stderr, "%lf\n", maxn);
 	dlclose(lib);
