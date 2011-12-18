@@ -9,17 +9,17 @@
 double maxn;
 
 int (*compute_point)(double complex c, double N, int k, double *abs) = NULL;
-void (*generate_ptr)( unsigned char *buf, int width, int height, int frame_x, int frame_y, int frame_w, int frame_h, double min_x, double min_y, double max_x, double max_y, double N, int iter, int C) = NULL;
+void (*generate_ptr)(int *buf, int width, int height, int frame_x, int frame_y, int frame_w, int frame_h, double min_x, double min_y, double max_x, double max_y, double N, int iter, int C, int colors[], int def_color) = NULL;
 
 void generate(
-		unsigned char *buf,
+		int *buf,
 		int width, int height,
 		int frame_x, int frame_y,
 		int frame_w, int frame_h,
 		double min_x, double min_y,
 		double max_x, double max_y,
 		double N, int iter,
-		int C
+		int C, int colors[], int def_color
 )
 {
 	maxn = 0;
@@ -34,7 +34,7 @@ void generate(
 		double complex c = (min_x + step_x * frame_x) + (min_y + step_y * frame_y)*I;
 		for (int i = 0; i < frame_w; ++i) {
 			double complex z;
-			buf[i] = 255;
+			buf[i] = def_color;
 			z = 0 + 0*I;
 			int k;
 			double abs2;
@@ -48,8 +48,7 @@ void generate(
 			}
 			if (k != iter) {
 				double v = k - log2(log2(abs2)/log2(N2));
-				int x = round(v*coef);
-				buf[i] = x & 0xff;
+				buf[i] = colors[(int)round(v*coef)];
 			}
 			c += step_x + 0*I;
 
@@ -59,14 +58,13 @@ void generate(
 	}
 }
 
-void print_xpm(const unsigned char *buf, int width, int height, FILE *fp)
+void print_xpm(const int *buf, int width, int height, FILE *fp)
 {
 	fprintf(fp, "/* XPM */\n");
 	fprintf(fp, "static char *XFACE[] = {");
 	fprintf(fp, "\"%i %i %i %i\"\n", width, height, 256, 2);
-	for (int i = 0; i < 255; ++i)
-		fprintf(fp, "\"%.2x c #%.2x%.2x%.2x\"\n", i, i/2, i/2, i/2);
-	fprintf(fp, "\"ff c #ffffff\"\n");
+	for (int i = 0; i < 256; ++i)
+		fprintf(fp, "\"%.2x c #%.2x%.2x%.2x\"\n", i, i, i, i);
 	for (int j = 0; j < height; ++j) {
 		fprintf(fp, "\"");
 		for (int i = 0; i < width; ++i)
@@ -92,8 +90,11 @@ int main(int argc, char *argv[])
 	}
 	int width  = atoi(argv[1]),
 	    height = atoi(argv[2]);
-	unsigned char *buf = (unsigned char*)malloc(width*height);
-	generate_ptr(buf, width, height, 0, 0, width, height, -1.80, -0.09, -1.70, 0.01, 50.0, 50, 256);
+	int *buf = (int*)malloc(width*height*sizeof(int));
+	int colors[256];
+	for (int i = 0; i < 256; ++i)
+		colors[i] = i;
+	generate_ptr(buf, width, height, 0, 0, width, height, -1.80, -0.09, -1.70, 0.01, 50.0, 50, 256, colors, 255);
 	print_xpm(buf, width, height, stdout);
 	fprintf(stderr, "%lf\n", maxn);
 	dlclose(lib);

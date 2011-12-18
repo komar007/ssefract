@@ -131,6 +131,7 @@ load_static_data:
 ; local vars:
 ; 	dqword [esp]     : min_x, min_y
 ; 	qword  [esp+16]  : result for one point
+; 	dword  [esp+24]  : width * 4 (used to jump to next line in buffer)
 ; 	qword  [esp+32]  : scaling coefficient
 generate:
 	; 48 bytes for local data just to be sure nothing gets in the way
@@ -146,7 +147,12 @@ generate:
 	mov ebx, [ebp+12] ; width
 	imul eax, ebx
 	add eax, [ebp+20] ; frame_x
+	; account for int size
+	imul eax, 4
 	add edx, eax
+	; prepare local variable [esp+24]
+	imul ebx, 4
+	mov [esp+24], ebx
 	; --------- begin count step_x, step_y
 	; load max_x and max_y
 	movupd xmm4, [ebp+52]
@@ -191,7 +197,8 @@ cols_loop:
 	cmp ecx, [ebp+28] ; frame_w
 	je cols_loop_end
 	; save default color for point in set
-	mov byte [edx+ecx], 255
+	mov eax, [ebp+88] ; default color
+	mov dword [edx+4*ecx], eax
 	; load max number of iterations to eax
 	mov eax, edi
 	call compute_point_impl ; leaves 0 in eax if in set, != 0 otherwise
@@ -201,7 +208,9 @@ cols_loop:
 	movq xmm1, [esp+16]
 	mulsd xmm1, [esp+32] ; scaling coefficient
 	cvtsd2si eax, xmm1
-	mov byte [edx+ecx], al
+	mov esi, [ebp+84] ; colors
+	mov eax, [esi+4*eax]
+	mov dword [edx+4*ecx], eax
 after_color:
 	; add step_x + 0i to c
 	addsd xmm0, xmm4 ; xmm4: steps
@@ -209,7 +218,7 @@ after_color:
 	jmp cols_loop
 cols_loop_end:
 	; move buffer one line down
-	add edx, [ebp+12] ; width
+	add edx, [esp+24] ; width*4
 	; increment frame_y - the line number
 	add dword [ebp+24], 1 ; frame_y
 	; ---
