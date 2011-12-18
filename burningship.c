@@ -6,7 +6,6 @@
 #include <math.h>
 #include <dlfcn.h>
 
-double maxn;
 
 int (*compute_point)(double complex c, double N, int k, double *abs) = NULL;
 void (*generate_ptr)(int *buf, int width, int height, int frame_x, int frame_y, int frame_w, int frame_h, double min_x, double min_y, double max_x, double max_y, double N, int iter, int C, int colors[], int def_color) = NULL;
@@ -22,7 +21,6 @@ void generate(
 		int C, int colors[], int def_color
 )
 {
-	maxn = 0;
 	double range_x = max_x - min_x,
 	       range_y = max_y - min_y;
 	double step_x = range_x / width,
@@ -73,6 +71,28 @@ void print_xpm(const int *buf, int width, int height, FILE *fp)
 	}
 }
 
+void print_bmp(const int *buf, int width, int height, FILE *fp)
+{
+	static const unsigned char BM_HDR1[] = {
+		0x42, 0x4d, 0x36, 0xb8, 0x0b, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x36, 0x00, 0x00, 0x00, 0x28, 0x00,
+		0x00, 0x00};
+	static const unsigned char BM_HDR2[] = {
+		0x01, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0xb8, 0x0b, 0x00, 0x13, 0x0b, 0x00, 0x00,
+		0x13, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00
+	};
+	fwrite(BM_HDR1, 1, sizeof(BM_HDR1), fp);
+	fwrite(&width,  4, 1, fp);
+	fwrite(&height, 4, 1, fp);
+	fwrite(BM_HDR2, 1, sizeof(BM_HDR2), fp);
+	for (int j = height - 1; j >= 0; --j)
+		for (int i = 0; i < width; ++i)
+			fwrite(buf + j*width+i, 3, 1, fp);
+}
+
+
 int main(int argc, char *argv[])
 {
 	void *lib = dlopen("./fractal.so", RTLD_LAZY);
@@ -93,10 +113,11 @@ int main(int argc, char *argv[])
 	int *buf = (int*)malloc(width*height*sizeof(int));
 	int colors[256];
 	for (int i = 0; i < 256; ++i)
-		colors[i] = i;
-	generate_ptr(buf, width, height, 0, 0, width, height, -1.80, -0.09, -1.70, 0.01, 50.0, 50, 256, colors, 255);
-	print_xpm(buf, width, height, stdout);
-	fprintf(stderr, "%lf\n", maxn);
+		colors[i] = i | (i << 8) | (i << 16);
+	generate_ptr(buf, width, height, 0, 0, width, height, -1.80, -0.09, -1.70, 0.01, 50.0, 50, 256, colors, 0xffffff);
+	FILE *fp = fopen(argv[3], "w");
+	print_bmp(buf, width, height, fp);
+	fclose(fp);
 	dlclose(lib);
 	return 0;
 }
