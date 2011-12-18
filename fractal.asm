@@ -130,10 +130,10 @@ load_static_data:
 ; local vars:
 ; 	dqword [esp]     : min_x, min_y
 ; 	qword  [esp+16]  : result for one point
+; 	qword  [esp+32]  : scaling coefficient
 generate:
-	; 32 bytes for local data just to be sure nothing gets in the way
-	; after aligning
-	enter 32, 0
+	; 48 bytes for local data just to be sure nothing gets in the way
+	enter 48, 0
 	; align stack pointer to 16 to have local vars aligned
 	and esp, ~0xf
 	; load xmm6 and xmm7 with static values
@@ -148,9 +148,9 @@ generate:
 	add edx, eax
 	; --------- begin count step_x, step_y
 	; load max_x and max_y
-	movupd xmm4, [ebp+64]
+	movupd xmm4, [ebp+52]
 	; load min_x and min_y
-	movupd xmm1, [ebp+48]
+	movupd xmm1, [ebp+36]
 	; save min_x and min_y in aligned memory
 	movapd [esp], xmm1
 	; subtract mins from maxs, ranges in xmm4
@@ -160,12 +160,16 @@ generate:
 	; divide by width and height, steps in xmm4
 	divpd xmm4, xmm1
 	; /-------- end count step_x, step_y
-	; load lower xmm5 with N^2 (bailout radius squared), save N in higher xmm5
-	movq xmm5, [ebp+36] ; N
-	movlhps xmm5, xmm5
+	; load lower xmm5 with N^2 (bailout radius squared)
+	movq xmm5, [ebp+68] ; N
 	mulsd xmm5, xmm5
+	; load [esp+32] with scaling coefficient C/iter
+	cvtsi2sd xmm0, [ebp+80] ; C
+	cvtsi2sd xmm1, [ebp+76] ; iter
+	divsd xmm0, xmm1
+	movq [esp+32], xmm0
 	; edi: max number of iterations
-	mov edi, [ebp+44] ; iter
+	mov edi, [ebp+76] ; iter
 	; ebx: row counter
 	mov ebx, 0
 rows_loop:
@@ -190,7 +194,10 @@ cols_loop:
 	call compute_point_impl ; leaves 0 in eax if in set, != 0 otherwise
 	; store floating point result in local var
 	fstp qword [esp+16] ; local var (result)
-	mov [edx+ecx], eax
+	movq xmm1, [esp+16]
+	mulsd xmm1, [esp+32] ; scaling coefficient
+	cvtsd2si eax, xmm1
+	mov byte [edx+ecx], al
 	; add step_x + 0i to c
 	addsd xmm0, xmm4 ; xmm4: steps
 	add ecx, 1
