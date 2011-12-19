@@ -1,4 +1,3 @@
-global compute_point:function
 global generate:function
 
 section .data
@@ -228,6 +227,7 @@ rows_loop_end:
 	leave
 	ret
 
+; DEPRECATED
 ; Wrapper around compute_point_impl to use from C
 ; arguments:
 ;	c - input complex value
