@@ -1,6 +1,6 @@
 #pragma once
 
-#define BASENAME "fractal"
+#define BASENAME "./fractal"
 #define SYMNAME  "generate"
 
 typedef void (*generator_fun_t)(

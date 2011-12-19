@@ -7,19 +7,14 @@
 #include <SDL/SDL.h>
 #include <pthread.h>
 
+#include "../../fractal_api.h"
+
 #define SCR_W 800
 #define SCR_H 600
 
-
-void conv(double x, double y, int *_x, int *_y)
-{
-	*_x = round((x/2 + .5) * SCR_W);
-	*_y = round((y/2 + .5) * SCR_H);
-}
-
-void (*generate)(const int*buf, ...) = NULL;
-
 int colors[768];
+
+generator_fun_t generate;
 
 void render(SDL_Surface *screen, double complex center, double complex step,
 		int x, int y, int fw, int fh)
@@ -78,12 +73,7 @@ double wheel_times = 2;
 
 int main(int argc, char *argv[])
 {
-	void *lib = dlopen("./fractal_asm.so", RTLD_LAZY);
-	generate = dlsym(lib, "generate");
-	if (generate == NULL) {
-		printf("error loading symbol from fractal.so\n");
-	}
-
+	generate = get_impl_or_die(IMPL_ASM);
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		fprintf(stderr, "Unable to initialize SDL_VIDEO!");
 		exit(-1);
@@ -209,8 +199,7 @@ int main(int argc, char *argv[])
 			SDL_Delay(1);
 		}
 	}
-	dlclose(lib);
+	close_libs_or_die();
 	pthread_exit(NULL);
-
 	return 0;
 }

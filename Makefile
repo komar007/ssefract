@@ -4,4 +4,4 @@ all:
 	gcc -shared -fPIC -std=c99 fractal.c -m32 -lm -o fractal_c.so
 	gcc -std=c99 benchmark.c fractal_api.c -m32 -lm -ldl -o burn_benchmark
 	gcc -std=c99 render.c fractal_api.c -m32 -lm -ldl -o render
-	gcc -std=c99 gui/sdl/gui.c -m32 -lm -ldl -o gui_sdl -lSDL
+	gcc -std=c99 gui/sdl/gui.c fractal_api.c -m32 -lm -ldl -o gui_sdl -lSDL
