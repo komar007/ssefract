@@ -8,6 +8,7 @@
 #include <pthread.h>
 
 #include "fractal_api.h"
+#include "threaded_generator.h"
 #include "io.h"
 
 #define SCR_W 1280
@@ -27,50 +28,16 @@ void render(SDL_Surface *screen, double complex center, double complex step,
 	double min_y = cimag(center) - cimag(scr_dim)/2*cimag(step);
 	double max_x = creal(center) + creal(scr_dim)/2*creal(step);
 	double max_y = cimag(center) + cimag(scr_dim)/2*cimag(step);
-	fprintf(stderr, "\r%lf %lf %lf %lf", min_x, min_y, max_x, max_y);
-	generate(screen->pixels,
-			SCR_W, SCR_H,
+	fprintf(stderr, "\r%.20lf %.20lf %.20lf %.20lf", min_x, min_y, max_x, max_y);
+	threaded_generate(
+			generate,
+			2,
+			screen->pixels, SCR_W, SCR_H,
 			x, y, fw, fh,
 			min_x, min_y, max_x, max_y,
 			50.0, 100,
-			num_colors, colors, 0x0);
-}
-
-struct params {
-	SDL_Surface *screen;
-	double complex center;
-	double complex step;
-	int x; int y; int fw; int fh;
-	int *done;
-};
-
-void* thread_render(void *data)
-{
-	struct params *params = data;
-	render(params->screen, params->center, params->step,
-			params->x, params->y, params->fw, params->fh);
-	++(*params->done);
-	pthread_exit(NULL);
-	return NULL;
-}
-
-int done;
-struct params params;
-pthread_t thread;
-
-void launch_thread(SDL_Surface *screen, double complex center, double complex step,
-		int x, int y, int fw, int fh)
-{
-	struct params *params = (struct params*)malloc(sizeof(struct params));
-	params->screen = screen,
-	params->center = center,
-	params->step = step,
-	params->x = x,
-	params->y = y,
-	params->fw = fw,
-	params->fh = fh;
-	params->done = &done;
-	pthread_create(&thread, NULL, thread_render, (void*)params);
+			num_colors, colors, 0x0
+	);
 }
 
 double wheel_times = 1.3;
@@ -113,11 +80,7 @@ int main(int argc, char *argv[])
 	num_colors = load_palette("colorpalette.bmp", &colors);
 	SDL_Event event;
 	double complex step = 0.0002 + 0.0002*I;
-	done = 0;
-	launch_thread(screen, center, step, 0, 0, SCR_W, SCR_H/2);
-	launch_thread(screen, center, step, 0, SCR_H/2, SCR_W, SCR_H/2);
-	while (done != 2)
-		;
+	render(screen, center, step,0, 0, SCR_W, SCR_H);
 	SDL_UpdateRect(screen, 0, 0, SCR_W, SCR_H);
 	bool drag = false;
 	while (1) {
@@ -177,12 +140,7 @@ int main(int argc, char *argv[])
 			}
 		}
 		if (redraw) {
-			done = 0;
-			launch_thread(screen, center, step, 0, 0, SCR_W, SCR_H/2);
-			launch_thread(screen, center, step, 0, SCR_H/2, SCR_W, SCR_H/2);
-			while (done != 2)
-				;
-			//render(screen, center, step, 0, 0, SCR_W, SCR_H);
+			render(screen, center, step, 0, 0, SCR_W, SCR_H);
 			//blur(screen);
 			SDL_UpdateRect(screen, 0, 0, SCR_W, SCR_H);
 		} else if (update) {

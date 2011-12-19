@@ -1,4 +1,4 @@
-CC=gcc -std=c99 -m32
+CC=gcc -std=c99 -m32 -O2
 LIBS=-lm -ldl
 WARN=
 SOURCES=gui.c
@@ -15,7 +15,7 @@ dep:
 
 -include Makefile.dep
 
-browser: gui.o io.o fractal_api.o
+browser: gui.o io.o fractal_api.o threaded_generator.o
 	@echo LINK $@
 	$(CC) -o $@ $^ $(LIBS) -lSDL
 

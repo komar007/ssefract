@@ -23,6 +23,7 @@ void threaded_generate(
 		int nthreads,
 		int *buf,
 		int width, int height,
+		int frame_x, int frame_y, int frame_w, int frame_h,
 		double min_x, double min_y, double max_x, double max_y,
 		double N, int iter,
 		int C, int colors[], int def_color
@@ -32,12 +33,16 @@ void threaded_generate(
 	struct job_data params[nthreads];
 
 	for (int i = 0; i < nthreads; ++i) {
+		/* height of a single thread */
+		int thr_height = frame_h/nthreads;
+		if (i == nthreads - 1)
+			thr_height = frame_h - thr_height*(nthreads-1);
 		struct job_data tparams = {
 			.generator = generator,
 			.buf = buf,
 			.width = width, .height = height,
-			.frame_x = 0, .frame_y = i*(height/nthreads),
-			.frame_w = width, .frame_h = height/nthreads,
+			.frame_x = frame_x, .frame_y = frame_y+i*(frame_h/nthreads),
+			.frame_w = frame_w, .frame_h = thr_height,
 			.min_x = min_x, .min_y = min_y, .max_x = max_x, .max_y = max_y,
 			.N = N, .iter = iter,
 			.C = C, .colors = colors, .def_color = def_color

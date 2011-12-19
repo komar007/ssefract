@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
 			generate,
 			nthreads,
 			buf, width, height,
+			0, 0, width, height,
 			min_x, min_y, max_x, max_y,
 			N, iter,
 			num_colors, colors, set_color
