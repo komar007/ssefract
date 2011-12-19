@@ -1,4 +1,5 @@
 #include "io.h"
+#include <stdlib.h>
 
 void print_xpm(const int *buf, int width, int height, FILE *fp)
 {
@@ -36,3 +37,16 @@ void print_bmp(const int *buf, int width, int height, FILE *fp)
 			fwrite(buf + j*width+i, 3, 1, fp);
 }
 
+int load_palette(const char *filename, int **palette)
+{
+	FILE *fp = fopen(filename, "r");
+	fseek(fp, 18, SEEK_SET);
+	int num_colors;
+	fread(&num_colors, 4, 1, fp);
+	fseek(fp, 54, SEEK_SET);
+	*palette = malloc(sizeof(int)*num_colors);
+	for (int i = 0; i < num_colors; ++i)
+		fread(*palette+i, 3, 1, fp);
+	fclose(fp);
+	return num_colors;;
+}

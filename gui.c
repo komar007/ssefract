@@ -7,12 +7,15 @@
 #include <SDL/SDL.h>
 #include <pthread.h>
 
-#include "../../fractal_api.h"
+#include "fractal_api.h"
+#include "io.h"
 
-#define SCR_W 800
-#define SCR_H 600
+#define SCR_W 1280
+#define SCR_H 1024
 
-int colors[768];
+int *colors;
+
+int num_colors;
 
 generator_fun_t generate;
 
@@ -24,12 +27,13 @@ void render(SDL_Surface *screen, double complex center, double complex step,
 	double min_y = cimag(center) - cimag(scr_dim)/2*cimag(step);
 	double max_x = creal(center) + creal(scr_dim)/2*creal(step);
 	double max_y = cimag(center) + cimag(scr_dim)/2*cimag(step);
+	fprintf(stderr, "\r%lf %lf %lf %lf", min_x, min_y, max_x, max_y);
 	generate(screen->pixels,
 			SCR_W, SCR_H,
 			x, y, fw, fh,
 			min_x, min_y, max_x, max_y,
-			50.0, 50,
-			768, colors, 0xffffff);
+			50.0, 100,
+			num_colors, colors, 0x0);
 }
 
 struct params {
@@ -69,7 +73,27 @@ void launch_thread(SDL_Surface *screen, double complex center, double complex st
 	pthread_create(&thread, NULL, thread_render, (void*)params);
 }
 
-double wheel_times = 2;
+double wheel_times = 1.3;
+
+#define S0(x, y) ((unsigned char*)screen->pixels)[(y)*screen->pitch + 4*(x)]
+#define S1(x, y) ((unsigned char*)screen->pixels)[(y)*screen->pitch + 4*(x)+1]
+#define S2(x, y) ((unsigned char*)screen->pixels)[(y)*screen->pitch + 4*(x)+2]
+void blur(SDL_Surface *screen)
+{
+	for (int j = 1; j < screen->h - 1; ++j) {
+		for (int i = 1; i < screen->w - 1; ++i) {
+			S0(i, j) = (S0(i-1, j-1) + 2*S0(i, j-1) +   S0(i+1, j-1) +
+				2*S0(i-1, j)   + 4*S0(i, j)   + 2*S0(i+1, j) +
+				  S0(i-1, j+1) + 2*S0(i, j+1) +   S0(i+1, j+1))/16;
+			S1(i, j) = (S1(i-1, j-1) + 2*S1(i, j-1) +   S1(i+1, j-1) +
+				2*S1(i-1, j)   + 4*S1(i, j)   + 2*S1(i+1, j) +
+				  S1(i-1, j+1) + 2*S1(i, j+1) +   S1(i+1, j+1))/16;
+			S2(i, j) = (S2(i-1, j-1) + 2*S2(i, j-1) +   S2(i+1, j-1) +
+				2*S2(i-1, j)   + 4*S2(i, j)   + 2*S2(i+1, j) +
+				  S2(i-1, j+1) + 2*S2(i, j+1) +   S2(i+1, j+1))/16;
+		}
+	}
+}
 
 int main(int argc, char *argv[])
 {
@@ -86,8 +110,7 @@ int main(int argc, char *argv[])
 		pthread_exit(NULL);
 	}
 	double complex center = -1.75 -0.04*I;
-	for (int i = 0; i < 768; ++i)
-		colors[i] = (i/3) | (((i+1)/3) << 8) | (((i+2)/3) << 16);
+	num_colors = load_palette("colorpalette.bmp", &colors);
 	SDL_Event event;
 	double complex step = 0.0002 + 0.0002*I;
 	done = 0;
@@ -160,6 +183,7 @@ int main(int argc, char *argv[])
 			while (done != 2)
 				;
 			//render(screen, center, step, 0, 0, SCR_W, SCR_H);
+			//blur(screen);
 			SDL_UpdateRect(screen, 0, 0, SCR_W, SCR_H);
 		} else if (update) {
 			center -= (diff_x)*creal(step) + (diff_y)*cimag(step)*I;
