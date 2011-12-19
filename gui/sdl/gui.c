@@ -7,8 +7,8 @@
 #include <SDL/SDL.h>
 #include <pthread.h>
 
-#define SCR_W 2560
-#define SCR_H 1024
+#define SCR_W 800
+#define SCR_H 600
 
 
 void conv(double x, double y, int *_x, int *_y)
@@ -78,7 +78,7 @@ double wheel_times = 2;
 
 int main(int argc, char *argv[])
 {
-	void *lib = dlopen("./fractal.so", RTLD_LAZY);
+	void *lib = dlopen("./fractal_asm.so", RTLD_LAZY);
 	generate = dlsym(lib, "generate");
 	if (generate == NULL) {
 		printf("error loading symbol from fractal.so\n");
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 		exit(-1);
 		pthread_exit(NULL);
 	}
-	SDL_Surface *screen = SDL_SetVideoMode(SCR_W, SCR_H, 32, SDL_SWSURFACE|SDL_FULLSCREEN);
+	SDL_Surface *screen = SDL_SetVideoMode(SCR_W, SCR_H, 32, SDL_SWSURFACE);
 	if (screen == NULL) {
 		fprintf(stderr, "Unable to initialize screen");
 		exit(-1);
