@@ -1,6 +1,6 @@
 #include "gui.h"
 
-void gui_init(struct gui_state *state, SDL_Surface *screen)
+void gui_init(struct gui_state *state, SDL_Surface *screen, int ncmds, struct command *cmds)
 {
 	if (TTF_Init() == -1) {
 	    printf("Error in TTF_Init: %s\n", TTF_GetError());
@@ -11,8 +11,11 @@ void gui_init(struct gui_state *state, SDL_Surface *screen)
 		printf("Error opening font: %s\n", TTF_GetError());
 		exit(-1);
 	}
+	state->mode = NORMAL;
 	state->text = malloc(sizeof(char)*1000);
 	state->screen = screen;
+	state->ncmds = ncmds;
+	state->cmds = cmds;
 }
 
 void gui_free(struct gui_state *state)
@@ -45,4 +48,25 @@ void gui_render(const struct gui_state *state, SDL_Surface *fractal)
 	SDL_BlitSurface(text, NULL, state->screen, &font_dest);
 	SDL_FreeSurface(text);
 	SDL_FreeSurface(background);
+}
+
+void gui_report_key(struct gui_state *state, char key)
+{
+	if (state->mode == COMMAND) {
+		state->cur_cmd->f.rarg(key, NULL);
+		state->mode = NORMAL;
+	} else if (state->mode == NORMAL) {
+		struct command *cmd = NULL;
+		for (int i = 0; i < state->ncmds; ++i)
+			if (state->cmds[i].cmd == key)
+				cmd = &state->cmds[i];
+		if (cmd) {
+			if (cmd->argtype == NONE) {
+				cmd->f.narg(NULL);
+			} else if (cmd->argtype == REGISTER) {
+				state->cur_cmd = cmd;
+				state->mode = COMMAND;
+			}
+		}
+	}
 }

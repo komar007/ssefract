@@ -32,7 +32,7 @@ void render_fract(SDL_Surface *surface, double complex center, double complex st
 	double min_y = cimag(center) - cimag(scr_dim)/2*cimag(step);
 	double max_x = creal(center) + creal(scr_dim)/2*creal(step);
 	double max_y = cimag(center) + cimag(scr_dim)/2*cimag(step);
-	fprintf(stderr, "\r%.20lf %.20lf %.20lf %.20lf", min_x, min_y, max_x, max_y);
+	//fprintf(stderr, "\r%.20lf %.20lf %.20lf %.20lf", min_x, min_y, max_x, max_y);
 	sprintf(gui_state.text, "%.10lf %.10lf %.10lf %.10lf", min_x, min_y, max_x, max_y);
 	threaded_generate(
 			generate,
@@ -74,6 +74,40 @@ void do_exit(int status)
 	pthread_exit(NULL);
 	exit(-1);
 }
+double complex step = 0.0002 + 0.0002*I;
+double complex center = -1.75 -0.04*I;
+
+struct {
+	bool used;
+	double complex step;
+	double complex center;
+} marks[256] = {0};
+
+bool redraw = false;
+bool update = false;
+
+void command_save_mark(char reg, void* data)
+{
+	marks[reg].used = true;
+	marks[reg].step = step;
+	marks[reg].center = center;
+}
+
+void command_goto_mark(char reg, void* data)
+{
+	if (marks[reg].used) {
+		step = marks[reg].step;
+		center = marks[reg].center;
+	}
+	redraw = true;
+}
+
+struct command commands[] = {
+	{.cmd = 'm', .argtype = REGISTER,
+		.f = &command_save_mark},
+	{.cmd = '\'', .argtype = REGISTER,
+		.f = &command_goto_mark}
+};
 
 int main(int argc, char *argv[])
 {
@@ -90,19 +124,15 @@ int main(int argc, char *argv[])
 	SDL_Surface *fract = SDL_CreateRGBSurface(
 			SDL_SWSURFACE, SCR_W, SCR_H, 32,
 			CMASKS, 0x00000000);
-	gui_init(&gui_state, screen);
+	gui_init(&gui_state, screen, sizeof(commands)/sizeof(*commands), commands);
 
-	double complex center = -1.75 -0.04*I;
 	num_colors = load_palette("colorpalette.bmp", &colors);
-	double complex step = 0.0002 + 0.0002*I;
 	render_fract(fract, center, step,0, 0, SCR_W, SCR_H);
 	gui_render(&gui_state, fract);
 	SDL_UpdateRect(screen, 0, 0, SCR_W, SCR_H);
 	bool drag = false;
 	SDL_Event event;
 	while (1) {
-		bool redraw = false;
-		bool update = false;
 		int diff_x = 0, diff_y = 0;
 		while (SDL_PollEvent(&event)) {
 			switch (event.type)
@@ -144,10 +174,13 @@ int main(int argc, char *argv[])
 					break;
 				case SDLK_z:
 					break;
-				case SDLK_ESCAPE:
+				case SDLK_q:
 					do_exit(0);
 					break;
 				}
+				break;
+			case SDL_KEYUP:
+				gui_report_key(&gui_state, event.key.keysym.sym);
 				break;
 			case SDL_QUIT:
 				do_exit(0);
@@ -159,6 +192,7 @@ int main(int argc, char *argv[])
 			gui_render(&gui_state, fract);
 			//blur(screen);
 			SDL_UpdateRect(screen, 0, 0, SCR_W, SCR_H);
+			redraw = false;
 		} else if (update) {
 			center -= (diff_x)*creal(step) + (diff_y)*cimag(step)*I;
 			SDL_Rect r_src;
@@ -194,6 +228,7 @@ int main(int argc, char *argv[])
 				render_fract(fract, center, step, 0, SCR_H+frame_h, SCR_W, -frame_h);
 			gui_render(&gui_state, fract);
 			SDL_UpdateRect(screen, 0, 0, SCR_W, SCR_H);
+			update = false;
 		} else {
 			SDL_Delay(1);
 		}
