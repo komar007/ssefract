@@ -1,23 +1,23 @@
 CC=gcc -std=c99 -m32 -O2
 LIBS=-lm -ldl
 WARN=
-SOURCES=gui.c
+SOURCES=browser.c benchmark.c fractal_api.c io.c render.c threaded_generator.c gui.c
 
-all: fractal_asm.so fractal_c.so browser render benchmark
+all: dep fractal_asm.so fractal_c.so browser render benchmark
 
 dep:
 	@echo -en > Makefile.dep
 	@for s in $(SOURCES); do \
-		avr-gcc -std=c99 -M $$s >> Makefile.dep; \
+		gcc -std=c99 -M $$s >> Makefile.dep; \
 		echo -e '\t'@echo CC $$s >> Makefile.dep; \
 		echo -e '\t'@$(CC) $(WARN) -c $$s >> Makefile.dep; \
 	done
 
 -include Makefile.dep
 
-browser: gui.o io.o fractal_api.o threaded_generator.o
+browser: browser.o io.o fractal_api.o threaded_generator.o gui.o
 	@echo LINK $@
-	$(CC) -o $@ $^ $(LIBS) -lSDL
+	$(CC) -o $@ $^ $(LIBS) -lSDL -lSDL_ttf
 
 render: render.o io.o fractal_api.o threaded_generator.o
 	@echo LINK $0

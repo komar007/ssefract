@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 	int nthreads = atoi(argv[12]);
 
 	int *colors;
-	int num_colors = load_palette("colorpalette.bmp", &colors);
+	int num_colors = load_palette(palette_filename, &colors);
 	int *buf = malloc(sizeof(int)*width*height);
 	threaded_generate(
 			generate,
