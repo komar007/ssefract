@@ -36,7 +36,9 @@ void render_fract(SDL_Surface *surface, double complex center, double complex ps
 	double max_x = creal(center) + creal(scr_dim)/2*creal(psize);
 	double max_y = cimag(center) + cimag(scr_dim)/2*cimag(psize);
 	//fprintf(stderr, "\r%.20lf %.20lf %.20lf %.20lf", min_x, min_y, max_x, max_y);
-	sprintf(gui.status_text, "%.10lf %.10lf %.10lf %.10lf", min_x, min_y, max_x, max_y);
+	sprintf(gui.status, "center: %lf%s%lfi   pixel size: %lf%s%lfi",
+			creal(center), cimag(center) >= 0 ? "+" : "", cimag(center),
+			creal(psize), cimag(psize) >= 0 ? "+" : "", cimag(psize));
 	threaded_generate(
 			generate,
 			2,
@@ -57,17 +59,26 @@ void do_exit(int status)
 struct {
 	bool used;
 	struct viewport viewport;
-} marks[256] = {0};
+} marks[26] = {0};
 
 void command_save_mark(char reg, void* data)
 {
-	marks[reg].used = true;
-	marks[reg].viewport = viewport;
+	marks[reg-'a'].used = true;
+	marks[reg-'a'].viewport = viewport;
+	char msg[128];
+	sprintf(msg, "saved mark in register %c", reg);
+	gui_notify(&gui, msg, GREEN, false);
 }
 void command_goto_mark(char reg, void* data)
 {
-	if (marks[reg].used)
-		viewport = marks[reg].viewport;
+	char msg[128];
+	if (marks[reg-'a'].used) {
+		viewport = marks[reg-'a'].viewport;
+		sprintf(msg, "restored from mark in register %c", reg);
+	} else {
+		sprintf(msg, "no mark in register %c", reg);
+	}
+	gui_notify(&gui, msg, GREEN, false);
 	/* force redraw */
 	gui.redraw = true;
 }
@@ -94,8 +105,7 @@ int main(int argc, char *argv[])
 
 	num_colors = load_palette("colorpalette.bmp", &colors);
 	render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
-	gui_render(&gui, gui.canvas);
-	gui_update(&gui);
+	gui_render(&gui);
 	SDL_Event event;
 	while (1) {
 		gui_process_events(&gui);
@@ -109,13 +119,11 @@ int main(int argc, char *argv[])
 			    h = gui.screen->h;
 			viewport.center -= ((mx-w/2)*creal(psize) + (my-h/2)*cimag(psize)*I)*(1 - ratio);
 			render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
-			gui_render(&gui, gui.canvas);
-			gui_update(&gui);
+			gui_render(&gui);
 			gui.zoomed = false;
 		} else if (gui.redraw) {
 			render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
-			gui_render(&gui, gui.canvas);
-			gui_update(&gui);
+			gui_render(&gui);
 			gui.zoomed = false;
 		} else if (gui.dragged) {
 			viewport.center -= (gui.diff_x)*creal(viewport.psize) + (gui.diff_y)*cimag(viewport.psize)*I;
@@ -150,8 +158,7 @@ int main(int argc, char *argv[])
 				render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, frame_h);
 			else if (frame_h < 0)
 				render_fract(gui.canvas, viewport.center, viewport.psize, 0, SCR_H+frame_h, SCR_W, -frame_h);
-			gui_render(&gui, gui.canvas);
-			gui_update(&gui);
+			gui_render(&gui);
 		} else if (gui.exit_requested) {
 			do_exit(0);
 		} else {

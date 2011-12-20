@@ -26,45 +26,71 @@ void gui_init_or_die(struct gui_state *state, int width, int height, int ncmds, 
 			CMASKS, 0x00000000);
 	state->drag = false;
 	state->mode = NORMAL;
-	state->status_text = malloc(sizeof(char)*1000);
+	state->status = malloc(sizeof(char)*1024);
+	state->notification = malloc(sizeof(char)*1024);
 	state->ncmds = ncmds;
 	state->cmds = cmds;
+	state->notification_visible = false;
 }
 
 void gui_free(struct gui_state *state)
 {
 	TTF_CloseFont(state->font);
-	free(state->status_text);
+	free(state->status);
 }
 
-void gui_render(const struct gui_state *state, SDL_Surface *fractal)
+void gui_notify(struct gui_state *state, const char *msg, int color, bool permanent)
+{
+	strcpy(state->notification, msg);
+	state->notification_visible = true;
+	state->notification_color = color;
+	state->notification_end = SDL_GetTicks() + (permanent ? 1000000 : NOTIF_TIME);
+	gui_render_panel(state);
+}
+
+void gui_render_panel(struct gui_state *state)
 {
 	SDL_Color fg = {255, 255, 255, 255};
 	int bg = 0x00000000;
+	SDL_Surface *status;
+	if (state->notification_visible)
+		status = TTF_RenderText_Blended(state->font, state->notification, fg);
+	else
+		status = TTF_RenderText_Blended(state->font, state->status, fg);
+	int bar_h = status->h + MARGIN;
+	int bar_y = state->screen->h - bar_h;
 	SDL_Surface *background = SDL_CreateRGBSurface(SDL_SWSURFACE|SDL_SRCALPHA,
-			state->screen->w, TEXT_HEIGHT+2*MARGIN, 32,
+			state->screen->w, bar_h, 32,
 			CMASKS, 0x00000000);
 	SDL_SetAlpha(background, SDL_SRCALPHA, 160);
-	SDL_Surface *status_text = TTF_RenderText_Blended(state->font, state->status_text, fg);
 	SDL_Rect font_dest = {
-		MARGIN, state->screen->h-(TEXT_HEIGHT+MARGIN),
-		state->screen->w - 2*MARGIN, TEXT_HEIGHT
+		MARGIN, bar_y + MARGIN,
+		state->screen->w - MARGIN, status->h
 	};
 	SDL_Rect bg_dest = {
-		0, state->screen->h-(TEXT_HEIGHT+2*MARGIN),
-		state->screen->w, TEXT_HEIGHT+2*MARGIN
+		0, bar_y,
+		state->screen->w, bar_h
 	};
 	SDL_FillRect(background, NULL, bg);
-	memcpy(state->screen->pixels, fractal->pixels,
-			state->screen->h*state->screen->pitch);
+	if (state->notification_visible) {
+		SDL_Rect r = { MARGIN, MARGIN, status->w + MARGIN, status->h};
+		SDL_FillRect(background, &r, state->notification_color);
+	}
+	int offset = bar_y*state->screen->pitch;
+	memcpy(state->screen->pixels + offset, state->canvas->pixels + offset,
+			bar_h*state->screen->pitch);
 	SDL_BlitSurface(background, NULL, state->screen, &bg_dest);
-	SDL_BlitSurface(status_text, NULL, state->screen, &font_dest);
-	SDL_FreeSurface(status_text);
+	SDL_BlitSurface(status, NULL, state->screen, &font_dest);
+	SDL_FreeSurface(status);
 	SDL_FreeSurface(background);
+	SDL_UpdateRect(state->screen, 0, bar_y, state->screen->w, bar_h);
 }
 
-void gui_update(struct gui_state *state)
+void gui_render(struct gui_state *state)
 {
+	memcpy(state->screen->pixels, state->canvas->pixels,
+			state->screen->h*state->screen->pitch);
+	gui_render_panel(state);
 	SDL_UpdateRect(state->screen, 0, 0, state->screen->w, state->screen->h);
 }
 
@@ -120,6 +146,11 @@ void gui_process_events(struct gui_state *state)
 	}
 	if (state->diff_x != 0 || state->diff_y != 0)
 		state->dragged = true;
+	if (SDL_GetTicks() > state->notification_end) {
+		state->notification_visible = false;
+		gui_render_panel(state);
+	}
+
 }
 
 void gui_report_key(struct gui_state *state, char key)
@@ -127,6 +158,8 @@ void gui_report_key(struct gui_state *state, char key)
 	if (state->mode == COMMAND) {
 		if (isalpha(key))
 			state->cur_cmd->f.rarg(key, NULL);
+		else
+			gui_notify(state, "wrong register", RED, false);
 		state->mode = NORMAL;
 	} else if (state->mode == NORMAL) {
 		struct command *cmd = NULL;
@@ -139,6 +172,7 @@ void gui_report_key(struct gui_state *state, char key)
 			} else if (cmd->argtype == REGISTER) {
 				state->cur_cmd = cmd;
 				state->mode = COMMAND;
+				gui_notify(state, "> arg: register", BLUE, true);
 			}
 		}
 	}

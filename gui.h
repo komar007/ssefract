@@ -34,11 +34,15 @@ struct gui_state {
 	/* set when dragged, together with diff_x, diff_y */
 	bool dragged;
 	enum gui_mode mode;
-	char *status_text;
+	char *status;
+	char *notification;
 	int ncmds;
 	struct command *cmds;
 	struct command *cur_cmd;
 	void* cmd_data;
+	bool notification_visible;
+	int notification_end;
+	int notification_color;
 };
 
 struct command {
@@ -53,12 +57,17 @@ struct command {
 };
 
 void gui_init_or_die(struct gui_state *state, int width, int height, int ncmds, struct command *cmds);
-void gui_render(const struct gui_state *state, SDL_Surface *screen);
-void gui_update(struct gui_state *state);
+void gui_render(struct gui_state *state);
+void gui_render_panel(struct gui_state *state);
 void gui_report_key(struct gui_state *state, char key);
+void gui_notify(struct gui_state *state, const char *msg, int color, bool permanent);
 void gui_process_events(struct gui_state *state);
 void gui_free(struct gui_state *state);
 
 #define CMASKS 0x000000ff, 0x0000ff00, 0x00ff0000
 #define WHEEL_TIMES 1.3
 #define FONT_NAME "mono.ttf"
+#define NOTIF_TIME 1500
+#define RED   0xff0000cc
+#define BLUE  0xffcc0000
+#define GREEN 0xff006600
