@@ -7,6 +7,7 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_ttf.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include "browser.h"
 
@@ -28,6 +29,8 @@ generator_fun_t generate;
 
 struct gui_state gui;
 struct viewport viewport;
+
+int output_scale = 4;
 
 void render_fract(SDL_Surface *surface, double complex center, double complex psize,
 		int x, int y, int fw, int fh)
@@ -52,6 +55,30 @@ void render_fract(SDL_Surface *surface, double complex center, double complex ps
 			50.0, iterations,
 			num_colors, colors, 0x0
 	);
+}
+
+bool thread_ended = false;
+bool thread_running = false;
+
+void* render_to_file(void *data)
+{
+	struct render_config *conf = data;
+	int *buf = malloc(sizeof(int)*conf->width*conf->height);
+	threaded_generate(
+			generate,
+			conf->nthreads,
+			buf, conf->width, conf->height,
+			0, 0, conf->width, conf->height,
+			conf->min_x, conf->min_y, conf->max_x, conf->max_y,
+			conf->N, conf->iter,
+			num_colors, colors, 0x0
+	);
+	FILE *fp = fopen("output.bmp", "w");
+	print_bmp(buf, conf->width, conf->height, fp);
+	fclose(fp);
+	free(buf);
+	thread_ended = true;
+	thread_running = false;
 }
 
 void patch_fractal(int diff_x, int diff_y)
@@ -174,8 +201,52 @@ void commands_iter(char cmd, void *data)
 	render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
 	gui_render(&gui);
 }
+void commands_gen_scale(char cmd, void *data)
+{
+	if (cmd == 's') {
+		output_scale += 1;
+	} else {
+		output_scale -= 1;
+	}
+	if (output_scale < 1)
+		output_scale = 1;
+	char msg[128];
+	sprintf(msg, "output resolution %ix%i",
+			gui.screen->w*output_scale,
+			gui.screen->h*output_scale);
+	gui_notify(&gui, msg, GREEN, false);
+}
+
+pthread_t thread;
+void command_generate(char cmd, void *data)
+{
+	if (thread_running) {
+		pthread_kill(thread);
+		thread_running = false;
+		gui_notify(&gui, "aborted generation of output.bmp", RED, false);
+		return;
+	}
+	static struct render_config conf;
+	int width = output_scale*gui.screen->w, height = output_scale*gui.screen->h;
+	double complex scr_dim = gui.screen->w + gui.screen->h*I;
+	conf.nthreads = 2;
+	conf.width = width, conf.height = height;
+	conf.min_x = creal(viewport.center) - creal(scr_dim)/2*creal(viewport.psize);
+	conf.min_y = cimag(viewport.center) - cimag(scr_dim)/2*cimag(viewport.psize);
+	conf.max_x = creal(viewport.center) + creal(scr_dim)/2*creal(viewport.psize);
+	conf.max_y = cimag(viewport.center) + cimag(scr_dim)/2*cimag(viewport.psize);
+	conf.N = 50;
+	conf.iter = iterations;
+	thread_ended = false;
+	thread_running = true;
+	pthread_create(&thread, NULL, render_to_file, &conf);
+	gui_notify(&gui, "started generation to file output.bmp", GREEN, false);
+}
 void command_quit(void *data)
 {
+	if (thread_running) {
+		pthread_kill(thread);
+	}
 	do_exit(0);
 }
 
@@ -205,8 +276,15 @@ struct command commands[] = {
 	{.cmd = 'i', .argtype = NONE,
 		.f = &commands_iter},
 	{.cmd = 'I', .argtype = NONE,
-		.f = &commands_iter}
+		.f = &commands_iter},
+	{.cmd = 'g', .argtype = NONE,
+		.f = &command_generate},
+	{.cmd = 's', .argtype = NONE,
+		.f = &commands_gen_scale},
+	{.cmd = 'S', .argtype = NONE,
+		.f = &commands_gen_scale}
 };
+
 
 int main(int argc, char *argv[])
 {
@@ -235,6 +313,9 @@ int main(int argc, char *argv[])
 			gui_render(&gui);
 		} else if (gui.exit_requested) {
 			do_exit(0);
+		} else if (thread_ended) {
+			thread_ended = false;
+			gui_notify(&gui, "completed generation of output.bmp", GREEN, false);
 		} else {
 			SDL_Delay(1);
 		}

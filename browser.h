@@ -15,3 +15,12 @@ struct mark {
 	bool used;
 	struct viewport viewport;
 };
+
+struct render_config {
+	int nthreads;
+	int width;
+	int height;
+	double min_x, min_y, max_x, max_y;
+	double N;
+	int iter;
+};
