@@ -137,7 +137,10 @@ void gui_process_events(struct gui_state *state)
 			}
 			break;
 		case SDL_KEYUP:
-			gui_report_key(state, event.key.keysym.sym);
+			if (event.key.keysym.mod & KMOD_SHIFT)
+				gui_report_key(state, event.key.keysym.sym - ('a' - 'A'));
+			else
+				gui_report_key(state, event.key.keysym.sym);
 			break;
 		case SDL_QUIT:
 			state->exit_requested = true;
@@ -157,7 +160,9 @@ void gui_report_key(struct gui_state *state, char key)
 {
 	if (state->mode == COMMAND) {
 		if (isalpha(key))
-			state->cur_cmd->f.rarg(key, NULL);
+			state->cur_cmd->f.rarg(state->cur_cmd->cmd, key, NULL);
+		else if (key == SDLK_ESCAPE)
+			state->notification_end = 0;
 		else
 			gui_notify(state, "wrong register", RED, false);
 		state->mode = NORMAL;
@@ -168,7 +173,7 @@ void gui_report_key(struct gui_state *state, char key)
 				cmd = &state->cmds[i];
 		if (cmd) {
 			if (cmd->argtype == NONE) {
-				cmd->f.narg(NULL);
+				cmd->f.narg(key, NULL);
 			} else if (cmd->argtype == REGISTER) {
 				state->cur_cmd = cmd;
 				state->mode = COMMAND;

@@ -50,9 +50,9 @@ struct command {
 	enum argument_type argtype;
 	union {
 		/* no-argument commands */
-		void (*narg)(void*);
+		void (*narg)(char cmd, void*);
 		/* register-argument commands */
-		void (*rarg)(char, void*);
+		void (*rarg)(char cmd, char key, void*);
 	} f;
 };
 

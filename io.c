@@ -50,3 +50,33 @@ int load_palette(const char *filename, int **palette)
 	fclose(fp);
 	return num_colors;;
 }
+
+int dump_marks(const char *filename, int nmarks, const struct mark *marks)
+{
+	FILE *fp = fopen(filename, "w");
+	if (!fp)
+		return -1;
+	int n = fwrite(&nmarks, sizeof(int), 1, fp);
+	if (n != 1)
+		return -1;
+	n = fwrite(marks, sizeof(struct mark), nmarks, fp);
+	if (n != nmarks)
+		return -1;
+	fclose(fp);
+	return 0;
+}
+int load_marks(const char *filename, struct mark *marks)
+{
+	FILE *fp = fopen(filename, "r");
+	if (!fp)
+		return -1;
+	int nmarks;
+	int n = fread(&nmarks, sizeof(int), 1, fp);
+	if (n != 1)
+		return -1;
+	n = fread(marks, sizeof(struct mark), nmarks, fp);
+	if (n != nmarks)
+		return -1;
+	fclose(fp);
+	return nmarks;
+}
