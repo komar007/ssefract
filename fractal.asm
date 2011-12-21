@@ -137,6 +137,12 @@ generate:
 	enter 48, 0
 	; align stack pointer to 16 to have local vars aligned
 	and esp, ~0xf
+	; push working register onto the stack.
+	; all later references through esp will be shifted by 12 bytes, the
+	; size of these 3 register
+	push ebx
+	push esi
+	push edi
 	; load xmm6 and xmm7 with static values
 	call load_static_data
 	; edx: pointer to buffer
@@ -151,14 +157,14 @@ generate:
 	add edx, eax
 	; prepare local variable [esp+24]
 	imul ebx, 4
-	mov [esp+24], ebx
+	mov [esp+24+12], ebx ; +12 because of 3 registers on the stack
 	; --------- begin count step_x, step_y
 	; load max_x and max_y
 	movupd xmm4, [ebp+52]
 	; load min_x and min_y
 	movupd xmm1, [ebp+36]
 	; save min_x and min_y in aligned memory
-	movapd [esp], xmm1
+	movapd [esp+12], xmm1 ; +12 because of 3 registers on the stack
 	; subtract mins from maxs, ranges in xmm4
 	subpd xmm4, xmm1
 	; load width and height
@@ -173,7 +179,7 @@ generate:
 	cvtsi2sd xmm0, [ebp+80] ; C
 	cvtsi2sd xmm1, [ebp+76] ; iter
 	divsd xmm0, xmm1
-	movq [esp+32], xmm0
+	movq [esp+32+12], xmm0 ; +12 because of 3 registers on the stack
 	; edi: max number of iterations
 	mov edi, [ebp+76] ; iter
 	; ebx: row counter
@@ -185,7 +191,7 @@ rows_loop:
 	; prepare c at the beginning of line:
 	; c = (min_x + step_x*frame_x) + (min_y + step_y*frame_y)i
 	; frame_y is changed for each iteration of rows_loop
-	movapd xmm0, [esp] ; min_x, min_y
+	movapd xmm0, [esp+12] ; min_x, min_y ; +12 because of 3 registers on the stack
 	movapd xmm1, xmm4 ; step_x, step_y
 	cvtdq2pd xmm2, [ebp+20] ; frame_x, frame_y
 	mulpd xmm1, xmm2
@@ -202,10 +208,10 @@ cols_loop:
 	mov eax, edi
 	call compute_point_impl ; leaves 0 in eax if in set, != 0 otherwise
 	; store floating point result in local var
-	fstp qword [esp+16] ; local var (result)
+	fstp qword [esp+16+12] ; local var (result) ; +12 because of 3 registers on the stack
 	jz after_color ; Z is set by compute_point_impl
-	movq xmm1, [esp+16]
-	mulsd xmm1, [esp+32] ; scaling coefficient
+	movq xmm1, [esp+16+12] ; +12 because of 3 registers on the stack
+	mulsd xmm1, [esp+32+12] ; scaling coefficient ; +12 because of 3 registers on the stack
 	cvtsd2si eax, xmm1
 	mov esi, [ebp+84] ; colors
 	mov eax, [esi+4*eax]
@@ -217,13 +223,16 @@ after_color:
 	jmp cols_loop
 cols_loop_end:
 	; move buffer one line down
-	add edx, [esp+24] ; width*4
+	add edx, [esp+24+12] ; width*4 ; +12 because of 3 registers on the stack
 	; increment frame_y - the line number
 	add dword [ebp+24], 1 ; frame_y
 	; ---
 	add ebx, 1
 	jmp rows_loop
 rows_loop_end:
+	pop edi
+	pop esi
+	pop ebx
 	leave
 	ret
 
