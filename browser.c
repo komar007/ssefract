@@ -22,6 +22,8 @@ int *colors;
 
 int num_colors;
 
+int iterations = 100;
+
 generator_fun_t generate;
 
 struct gui_state gui;
@@ -36,16 +38,18 @@ void render_fract(SDL_Surface *surface, double complex center, double complex ps
 	double max_x = creal(center) + creal(scr_dim)/2*creal(psize);
 	double max_y = cimag(center) + cimag(scr_dim)/2*cimag(psize);
 	//fprintf(stderr, "\r%.20lf %.20lf %.20lf %.20lf", min_x, min_y, max_x, max_y);
-	sprintf(gui.status, "center: %lf%s%lfi   pixel size: %lf%s%lfi",
+	sprintf(gui.status, "center: %lf%s%lfi   pixel size: %lf%s%lfi   max iterations: %i",
 			creal(center), cimag(center) >= 0 ? "+" : "", cimag(center),
-			creal(psize), cimag(psize) >= 0 ? "+" : "", cimag(psize));
+			creal(psize), cimag(psize) >= 0 ? "+" : "", cimag(psize),
+			iterations);
+
 	threaded_generate(
 			generate,
 			2,
 			surface->pixels, SCR_W, SCR_H,
 			x, y, fw, fh,
 			min_x, min_y, max_x, max_y,
-			50.0, 100,
+			50.0, iterations,
 			num_colors, colors, 0x0
 	);
 }
@@ -158,6 +162,18 @@ void commands_hjkl(char cmd, void *data)
 	patch_fractal(offs_x, offs_y);
 	gui_render(&gui);
 }
+void commands_iter(char cmd, void *data)
+{
+	if (cmd == 'i') {
+		iterations += 10;
+		gui_notify(&gui, "increased max iterations by 10", GREEN, false);
+	} else {
+		iterations -= 10;
+		gui_notify(&gui, "decreased max iterations by 10", GREEN, false);
+	}
+	render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
+	gui_render(&gui);
+}
 void command_quit(void *data)
 {
 	do_exit(0);
@@ -185,7 +201,11 @@ struct command commands[] = {
 	{.cmd = 'z', .argtype = NONE,
 		.f = &commands_hjkl},
 	{.cmd = 'Z', .argtype = NONE,
-		.f = &commands_hjkl}
+		.f = &commands_hjkl},
+	{.cmd = 'i', .argtype = NONE,
+		.f = &commands_iter},
+	{.cmd = 'I', .argtype = NONE,
+		.f = &commands_iter}
 };
 
 int main(int argc, char *argv[])
