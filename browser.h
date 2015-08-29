@@ -13,6 +13,7 @@ struct viewport {
 
 struct mark {
 	bool used;
+	int iter;
 	struct viewport viewport;
 };
 

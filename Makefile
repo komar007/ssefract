@@ -1,4 +1,4 @@
-CC=gcc -std=c99 -m32 -O2
+CC=gcc -std=c99 -m32 -O2 -g -ggdb
 LIBS=-lm -ldl
 WARN=
 SOURCES=browser.c benchmark.c fractal_api.c io.c render.c threaded_generator.c gui.c
@@ -17,7 +17,7 @@ dep:
 
 browser: browser.o io.o fractal_api.o threaded_generator.o gui.o
 	@echo LINK $@
-	$(CC) -o $@ $^ $(LIBS) -lSDL -lSDL_ttf
+	$(CC) -o $@ $^ $(LIBS) -lpthread -lSDL -lSDL_ttf
 
 render: render.o io.o fractal_api.o threaded_generator.o
 	@echo LINK $0

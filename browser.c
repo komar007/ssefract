@@ -8,6 +8,8 @@
 #include <SDL/SDL_ttf.h>
 #include <pthread.h>
 #include <signal.h>
+#include <errno.h>
+#include <dirent.h>
 
 #include "browser.h"
 
@@ -19,9 +21,11 @@
 #define SCR_W 1280
 #define SCR_H 1024
 
-int *colors;
-
-int num_colors;
+int *colors[100];
+char *palette_names[100];
+int num_colors[100];
+int cur_palette = 0;
+int num_palettes;
 
 int iterations = 100;
 
@@ -29,6 +33,8 @@ generator_fun_t generate;
 
 struct gui_state gui;
 struct viewport viewport;
+
+volatile SDL_Surface *large_canvas;
 
 int output_scale = 4;
 
@@ -41,24 +47,24 @@ void render_fract(SDL_Surface *surface, double complex center, double complex ps
 	double max_x = creal(center) + creal(scr_dim)/2*creal(psize);
 	double max_y = cimag(center) + cimag(scr_dim)/2*cimag(psize);
 	//fprintf(stderr, "\r%.20lf %.20lf %.20lf %.20lf", min_x, min_y, max_x, max_y);
-	sprintf(gui.status, "center: %lf%s%lfi   pixel size: %lf%s%lfi   max iterations: %i",
-			creal(center), cimag(center) >= 0 ? "+" : "", cimag(center),
-			creal(psize), cimag(psize) >= 0 ? "+" : "", cimag(psize),
+	sprintf(gui.status, "center: %.10lf%s%.10lfi | pixel size: %e%s%ei | max iterations: %i",
+			creal(center), cimag(center) >= 0 ? " + " : " - ", fabs(cimag(center)),
+			creal(psize), cimag(psize) >= 0 ? " + " : " - ", fabs(cimag(psize)),
 			iterations);
 
 	threaded_generate(
 			generate,
-			2,
+			8,
 			surface->pixels, SCR_W, SCR_H,
 			x, y, fw, fh,
 			min_x, min_y, max_x, max_y,
 			50.0, iterations,
-			num_colors, colors, 0x0
+			num_colors[cur_palette], colors[cur_palette], 0x0
 	);
 }
 
-bool thread_ended = false;
-bool thread_running = false;
+volatile bool thread_ended = false;
+volatile bool thread_running = false;
 
 void* render_to_file(void *data)
 {
@@ -71,7 +77,7 @@ void* render_to_file(void *data)
 			0, 0, conf->width, conf->height,
 			conf->min_x, conf->min_y, conf->max_x, conf->max_y,
 			conf->N, conf->iter,
-			num_colors, colors, 0x0
+			num_colors[cur_palette], colors[cur_palette], 0x0
 	);
 	FILE *fp = fopen("output.bmp", "w");
 	print_bmp(buf, conf->width, conf->height, fp);
@@ -79,6 +85,59 @@ void* render_to_file(void *data)
 	free(buf);
 	thread_ended = true;
 	thread_running = false;
+}
+
+volatile bool nice_valid = true;
+volatile bool update_nice = false;
+
+#define SSCALE 4
+void render_aa(uint8_t buf[], double complex center, double complex psize,
+		int x, int y, int fw, int fh)
+{
+	double complex scr_dim = SCR_W + SCR_H*I;
+	double min_x = creal(center) - creal(scr_dim)/2*creal(psize);
+	double min_y = cimag(center) - cimag(scr_dim)/2*cimag(psize);
+	double max_x = creal(center) + creal(scr_dim)/2*creal(psize);
+	double max_y = cimag(center) + cimag(scr_dim)/2*cimag(psize);
+	threaded_generate(
+			generate,
+			8,
+			large_canvas->pixels, SCR_W*SSCALE, SCR_H*SSCALE,
+			x*SSCALE, y*SSCALE, fw*SSCALE, fh*SSCALE,
+			min_x, min_y, max_x, max_y,
+			50.0, iterations,
+			num_colors[cur_palette], colors[cur_palette], 0x0
+	);
+	if (!nice_valid)
+		return;
+	for (int _y = y; _y < y+fh; ++_y) {
+		for (int _x = x; _x < x+fw; ++_x) {
+			int r = 0, g = 0, b = 0;
+			for (int j = _y*SSCALE; j < _y*SSCALE+SSCALE; ++j) {
+				for (int i = _x*SSCALE; i < _x*SSCALE+SSCALE; ++i) {
+					r += ((uint8_t*)large_canvas->pixels)[4*(j*SCR_W*SSCALE+i)+0];
+					g += ((uint8_t*)large_canvas->pixels)[4*(j*SCR_W*SSCALE+i)+1];
+					b += ((uint8_t*)large_canvas->pixels)[4*(j*SCR_W*SSCALE+i)+2];
+				}
+			}
+			r /= SSCALE*SSCALE;
+			g /= SSCALE*SSCALE;
+			b /= SSCALE*SSCALE;
+			buf[4*(_y*SCR_W+_x)+3] = 0x00;
+			buf[4*(_y*SCR_W+_x)+0] = r;
+			buf[4*(_y*SCR_W+_x)+1] = g;
+			buf[4*(_y*SCR_W+_x)+2] = b;
+		}
+	}
+}
+
+volatile bool aa_thread_running = false;
+void* render_nice(void *data)
+{
+	render_aa(gui.canvas->pixels, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
+	if (nice_valid)
+		update_nice = true;
+	aa_thread_running = false;
 }
 
 void patch_fractal(int diff_x, int diff_y)
@@ -229,7 +288,7 @@ void command_generate(char cmd, void *data)
 	static struct render_config conf;
 	int width = output_scale*gui.screen->w, height = output_scale*gui.screen->h;
 	double complex scr_dim = gui.screen->w + gui.screen->h*I;
-	conf.nthreads = 2;
+	conf.nthreads = 8;
 	conf.width = width, conf.height = height;
 	conf.min_x = creal(viewport.center) - creal(scr_dim)/2*creal(viewport.psize);
 	conf.min_y = cimag(viewport.center) - cimag(scr_dim)/2*cimag(viewport.psize);
@@ -241,6 +300,33 @@ void command_generate(char cmd, void *data)
 	thread_running = true;
 	pthread_create(&thread, NULL, render_to_file, &conf);
 	gui_notify(&gui, "started generation to file output.bmp", GREEN, false);
+}
+pthread_t aa_thread;
+void command_render_nice(char cmd, void *data)
+{
+	if (aa_thread_running)
+		return;
+	thread_running = true;
+	nice_valid = true;
+	update_nice = false;
+	aa_thread_running = true;
+	pthread_create(&aa_thread, NULL, render_nice, NULL);
+	gui_notify(&gui, "generating hi-q image", GREEN, false);
+}
+void command_palette(char cmd, void *data)
+{
+	if (cmd == 'p') {
+		if (++cur_palette >= num_palettes)
+			cur_palette = 0;
+	} else {
+		if (--cur_palette < 0)
+			cur_palette = num_palettes - 1;
+	}
+	render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
+	gui_render(&gui);
+	char *txt = malloc(200);
+	sprintf(txt, "current color palette: %s", palette_names[cur_palette]);
+	gui_notify(&gui, txt, GREEN, false);
 }
 void command_quit(void *data)
 {
@@ -282,8 +368,44 @@ struct command commands[] = {
 	{.cmd = 's', .argtype = NONE,
 		.f = &commands_gen_scale},
 	{.cmd = 'S', .argtype = NONE,
-		.f = &commands_gen_scale}
+		.f = &commands_gen_scale},
+	{.cmd = 'n', .argtype = NONE,
+		.f = &command_render_nice},
+	{.cmd = 'p', .argtype = NONE,
+		.f = &command_palette},
+	{.cmd = 'P', .argtype = NONE,
+		.f = &command_palette}
 };
+
+int load_colorpalettes(const char* path)
+{
+	DIR* dir = opendir(path);
+	if (!dir)
+		return -1;
+
+	struct dirent *file;
+	errno = 0;
+	int num = 0;
+	while ((file = readdir(dir)) != NULL)
+	{
+		if (!strcmp(file->d_name, "."  ))
+			continue;
+		if (!strcmp(file->d_name, ".." ))
+			continue;
+
+		if (file->d_name[0] == '.')
+			continue;
+
+		if (strstr(file->d_name, ".pal")) {
+			num_colors[num] = load_palette(file->d_name, &colors[num]);
+			palette_names[num] = malloc(strlen(file->d_name) + 1);
+			strcpy(palette_names[num], file->d_name);
+			++num;
+		}
+	}
+	closedir(dir);
+	return num;
+}
 
 
 int main(int argc, char *argv[])
@@ -293,22 +415,33 @@ int main(int argc, char *argv[])
 	viewport.psize = 0.0002 + 0.0002*I;
 	viewport.center = -1.75 -0.04*I;
 
-	num_colors = load_palette("colorpalette.bmp", &colors);
+	large_canvas = SDL_CreateRGBSurface(
+			SDL_SWSURFACE, SCR_W*SSCALE, SCR_H*SSCALE, 32,
+			CMASKS, 0x00000000);
+
+	num_palettes = load_colorpalettes(".");
 	render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
 	gui_render(&gui);
 	SDL_Event event;
 	while (1) {
 		gui_process_events(&gui);
+		if (update_nice) {
+			gui_render(&gui);
+			update_nice = false;
+		}
 		if (gui.zoomed) {
+			nice_valid = false;
 			zoom(gui.zoom_factor, gui.mouse_x, gui.mouse_y);
 			render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
 			gui_render(&gui);
 			gui.zoomed = false;
 		} else if (gui.redraw) {
+			nice_valid = false;
 			render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
 			gui_render(&gui);
 			gui.zoomed = false;
 		} else if (gui.dragged) {
+			nice_valid = false;
 			patch_fractal(gui.diff_x, gui.diff_y);
 			gui_render(&gui);
 		} else if (gui.exit_requested) {
