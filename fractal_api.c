@@ -1,8 +1,13 @@
+#define _GNU_SOURCE
 #include "fractal_api.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <dlfcn.h>
+#include <unistd.h>   /* readlink */
+#include <libgen.h>   /* dirname */
+#include <limits.h>   /* PATH_MAX */
+#include <string.h>
 
 void* load_lib_or_die(const char *name)
 {
@@ -50,8 +55,22 @@ generator_fun_t get_impl_or_die(enum implementation impl)
 		printf("get_impl_or_die: wrong implementation chosen\n");
 		exit(-1);
 	}
-	if (!libs[impl])
-		libs[impl] = load_lib_or_die(libname);
+	if (!libs[impl]) {
+		/* Resolve .so path relative to the executable, not CWD */
+		char exe_path[PATH_MAX];
+		ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+		if (len == -1) {
+			perror("readlink /proc/self/exe");
+			exit(-1);
+		}
+		exe_path[len] = '\0';
+		char exe_path_copy[PATH_MAX];
+		strncpy(exe_path_copy, exe_path, sizeof(exe_path_copy));
+		char *exe_dir = dirname(exe_path_copy);
+		char full_libname[PATH_MAX];
+		snprintf(full_libname, sizeof(full_libname), "%s/%s", exe_dir, libname);
+		libs[impl] = load_lib_or_die(full_libname);
+	}
 	return load_impl_or_die(libs[impl], SYMNAME);
 }
 
