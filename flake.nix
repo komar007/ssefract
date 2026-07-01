@@ -38,7 +38,10 @@
             # sdl12-compat puts SDL.h at include/SDL/SDL.h, but
             # SDL_ttf.h does #include "SDL.h" and the stdenv only
             # adds the include/ parent.  Fix: add the SDL/ subdir.
-            CFLAGS="$NIX_CFLAGS_COMPILE -I${pkgs_i686.SDL}/include/SDL"
+            # ASSETS_DIR tells the code where fonts + palettes live (.so are
+            # always resolved relative to the executable via /proc/self/exe).
+            SDATA="$out/share/ssefract"
+            CFLAGS="$NIX_CFLAGS_COMPILE -DASSETS_DIR=\"$SDATA\" -I${pkgs_i686.SDL}/include/SDL"
             LDFLAGS="$NIX_LDFLAGS"
             # bare gcc chokes on -rpath; keep -L, drop the rest
             LDFLAGS=$(echo "$LDFLAGS" | sed 's/-rpath [^ ]*//g')
@@ -71,10 +74,11 @@
 
           installPhase = ''
             runHook preInstall
-            mkdir -p "$out/bin" "$out/share/ssefract"
+            mkdir -p "$out/bin" "$out/lib" "$out/share/ssefract"
             cp browser render benchmark "$out/bin/"
+            # .so files next to exe (get_exe_dir resolves here)
             cp fractal_asm.so fractal_c.so "$out/bin/"
-            cp fractal_asm.so fractal_c.so "$out/share/ssefract/"
+            cp fractal_asm.so fractal_c.so "$out/lib/"
             cp *.pal mono.ttf "$out/share/ssefract/"
             runHook postInstall
           '';

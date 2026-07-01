@@ -41,6 +41,10 @@ void print_bmp(const int *buf, int width, int height, FILE *fp)
 int load_palette(const char *filename, int **palette)
 {
 	FILE *fp = fopen(filename, "r");
+	if (!fp) {
+		perror(filename);
+		return -1;
+	}
 	fseek(fp, 18, SEEK_SET);
 	int num_colors;
 	fread(&num_colors, 4, 1, fp);

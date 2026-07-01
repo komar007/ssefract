@@ -1,4 +1,6 @@
 #include "gui.h"
+#include "fractal_api.h"
+#include <stdio.h>
 #include <ctype.h>
 
 void gui_init_or_die(struct gui_state *state, int width, int height, int ncmds, struct command *cmds)
@@ -16,7 +18,17 @@ void gui_init_or_die(struct gui_state *state, int width, int height, int ncmds, 
 		printf("Error in TTF_Init: %s\n", TTF_GetError());
 		exit(-1);
 	}
-	state->font = TTF_OpenFont(FONT_NAME, TEXT_HEIGHT);
+	{
+		char fontpath[4096];
+#ifdef ASSETS_DIR
+		snprintf(fontpath, sizeof(fontpath), "%s/%s",
+			 ASSETS_DIR, FONT_NAME);
+#else
+		snprintf(fontpath, sizeof(fontpath), "%s/%s",
+			 get_exe_dir(), FONT_NAME);
+#endif
+		state->font = TTF_OpenFont(fontpath, TEXT_HEIGHT);
+	}
 	if (!state->font) {
 		printf("Error opening font: %s\n", TTF_GetError());
 		exit(-1);

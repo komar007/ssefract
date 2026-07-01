@@ -19,4 +19,5 @@ enum implementation {
 };
 
 generator_fun_t get_impl_or_die(enum implementation impl);
-void close_libs_or_die();
+void close_libs_or_die(void);
+const char *get_exe_dir(void);

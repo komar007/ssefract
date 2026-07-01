@@ -397,7 +397,9 @@ int load_colorpalettes(const char* path)
 			continue;
 
 		if (strstr(file->d_name, ".pal")) {
-			num_colors[num] = load_palette(file->d_name, &colors[num]);
+			char full[4096];
+			snprintf(full, sizeof(full), "%s/%s", path, file->d_name);
+			num_colors[num] = load_palette(full, &colors[num]);
 			palette_names[num] = malloc(strlen(file->d_name) + 1);
 			strcpy(palette_names[num], file->d_name);
 			++num;
@@ -419,7 +421,13 @@ int main(int argc, char *argv[])
 			SDL_SWSURFACE, SCR_W*SSCALE, SCR_H*SSCALE, 32,
 			CMASKS, 0x00000000);
 
-	num_palettes = load_colorpalettes(".");
+	num_palettes = load_colorpalettes(
+#ifdef ASSETS_DIR
+			ASSETS_DIR
+#else
+			get_exe_dir()
+#endif
+			);
 	render_fract(gui.canvas, viewport.center, viewport.psize, 0, 0, SCR_W, SCR_H);
 	gui_render(&gui);
 	SDL_Event event;
