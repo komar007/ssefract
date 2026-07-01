@@ -186,16 +186,11 @@ void zoom(double zoom_factor, int mx, int my)
 	viewport.center -= ((mx-w/2)*creal(psize) + (my-h/2)*cimag(psize)*I)*(1 - ratio);
 }
 
-extern pthread_t thread;
-extern pthread_t aa_thread;
-
 void do_exit(int status)
 {
-	/* Stop background threads before touching their libraries */
-	if (thread_running)
-		pthread_kill(thread);
-	if (aa_thread_running)
-		pthread_kill(aa_thread);
+	/* Tell background threads to stop after their current work */
+	thread_running = false;
+	nice_valid = false;
 
 	/* Free GUI resources */
 	gui_free(&gui);
@@ -206,9 +201,11 @@ void do_exit(int status)
 	TTF_Quit();
 	SDL_Quit();
 
-	/* Unload fractal shared objects */
-	close_libs_or_die();
-
+	/*
+	 * Do not dlclose the fractal .so files — worker threads from
+	 * render_nice / render_to_file may still be inside generate().
+	 * The OS unmaps shared libraries cleanly on process exit.
+	 */
 	exit(status);
 }
 
@@ -326,7 +323,6 @@ void command_render_nice(char cmd, void *data)
 {
 	if (aa_thread_running)
 		return;
-	thread_running = true;
 	nice_valid = true;
 	update_nice = false;
 	aa_thread_running = true;
