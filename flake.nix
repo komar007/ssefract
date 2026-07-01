@@ -87,22 +87,25 @@
             description = "Fractal renderer (CLI + SDL browser), 32-bit";
             mainProgram = "browser";
             platforms = [ "x86_64-linux" "i686-linux" ];
-            # FIXME: add a real license file to the repo, then replace this.
-            license = licenses.free;
+            license = licenses.mit;
             longDescription = ''
-              ssefract renders Mandelbrot / Julia fractals via hand-written
-              assembly and C implementations loaded as shared objects.
-
-              Targets built:
-                browser   — SDL 1.2 GUI with palette cycling and zoom
-                render    — CLI batch renderer (outputs BMP)
-                benchmark — throughput measurement
-
-              At runtime cd to $out/share/ssefract so the SDL browser
-              can find mono.ttf and the *.pal colour-palette files.
+              SSE-accelerated Mandelbrot / Julia fractal renderer.  University
+              project — hand-written x86 assembly (SSE2 + x87) with a C
+              implementation for comparison.
             '';
           };
         };
+      };
+
+      # ── Apps (nix run .#render etc.) ──────────────────────────────
+      apps.${system} = let
+        pkg = self.packages.${system}.ssefract;
+        app = name: { type = "app"; program = "${pkg}/bin/${name}"; };
+      in {
+        default   = app "browser";
+        browser   = app "browser";
+        render    = app "render";
+        benchmark = app "benchmark";
       };
 
       # ── Dev shell ─────────────────────────────────────────────────
