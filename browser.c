@@ -186,10 +186,30 @@ void zoom(double zoom_factor, int mx, int my)
 	viewport.center -= ((mx-w/2)*creal(psize) + (my-h/2)*cimag(psize)*I)*(1 - ratio);
 }
 
+extern pthread_t thread;
+extern pthread_t aa_thread;
+
 void do_exit(int status)
 {
-	pthread_exit(NULL);
-	exit(-1);
+	/* Stop background threads before touching their libraries */
+	if (thread_running)
+		pthread_kill(thread);
+	if (aa_thread_running)
+		pthread_kill(aa_thread);
+
+	/* Free GUI resources */
+	gui_free(&gui);
+	free(gui.notification);
+	SDL_FreeSurface(gui.canvas);
+
+	/* Shut down SDL */
+	TTF_Quit();
+	SDL_Quit();
+
+	/* Unload fractal shared objects */
+	close_libs_or_die();
+
+	exit(status);
 }
 
 struct mark marks[26] = {0};
